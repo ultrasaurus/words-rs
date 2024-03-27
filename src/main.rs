@@ -1,5 +1,11 @@
-use regex::Regex;
+use anyhow::anyhow;
 use clap::Parser;
+use std::{
+    fs,
+    io::BufReader,
+    path::PathBuf
+};
+use words::{html_words, WordTime};
 
 #[derive(Parser)]
 #[clap(author, version, about, long_about = None)]
@@ -7,29 +13,53 @@ struct Cli {
     /// source text 
     #[clap(short, long, value_parser, default_value = "Hello world!")]
     text: String,
+    /// input file, if --input option is given, then --text is ignored
+    #[clap(short, long, value_parser)]
+    input: Option<String>,
+    /// output file, if not given output to stdio
+    #[clap(short, long, value_parser)]
+    output: Option<String>,
+
 }
 
-fn html_words(text: String) -> anyhow::Result<String> {
-    let regex = Regex::new(r"([a-zà-ýA-ZÀ-Ý0-9]+?)([[\s$][^a-zà-ýA-ZÀ-Ý0-9]]+)")?;
-    let mut nth_word = 0;
-    let html_string = regex.captures_iter(&text).map(|c| {
-        println!("{:?}", c);
-        let range: std::ops::Range<usize> = c.get(0).unwrap().range();
-        let s = format!("<span word='{}' char='{}'>{}</span>{}", 
-                        nth_word, range.start, &c[1], &c[2]);
-        nth_word = nth_word + 1;
-        s
-    }).collect::<Vec<String>>().join("");
-    Ok(html_string)    
-}
 fn main() -> anyhow::Result<()> {
     let cli = Cli::parse();
-    let html_string = html_words(cli.text)?;
 
-    println!("-----");
-    println!("{}", html_string);
+    let html_string = match cli.input {
+        None => html_words(&cli.text, None)?,
+        Some(path_string) => {
+            println!("Text input path: {}", path_string);
+            let txt_path = PathBuf::from(path_string);
+            let transcript_path = txt_path.with_extension("transcript.json");
+            let text: String = fs::read_to_string(txt_path)?;
+            println!("Checking for transcript file: {}", transcript_path.display());
+            match fs::File::open(transcript_path) {
+                Ok(file) => {
+                    let transcript_reader =
+                        BufReader::new(file);
+                    let timing =
+                        WordTime::from_transcript(transcript_reader)?;
+                    html_words(text, Some(&timing))?
+                },
+                Err(e) => {
+                    if e.kind() == std::io::ErrorKind::NotFound {
+                        println!("No transcript file found: rendering HTML without word timing");
+                        html_words(text, None)?
+                    } else {
+                        // Err(anyhow!(e)
+                        // .context("transcript file could not be opened {}", txt_path))
+                        return Err(anyhow!(e).context("from_transcript: failed to convert to json"))
+                    }
+                }
+            }
+        }
+    };
 
-    println!("-----");
+    match cli.output {
+        None =>   println!("{}", html_string),
+        Some(path) => std::fs::write(path, html_string)?
+    }
+  
 
     Ok(())
 }
