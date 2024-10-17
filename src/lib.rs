@@ -2,6 +2,14 @@ use regex::Regex;
 mod transcript;
 pub use transcript::WordTime as WordTime;
 
+// enum HtmlError {
+//     NoMoreWords => "no more words",
+//     Other => "Error"
+// }
+
+const HTML_ERROR: &str = "ERROR";
+
+
 
 pub fn html_words<S: AsRef<str>>(text: S, optional_timing: Option<&Vec<WordTime>>) -> anyhow::Result<String> {
     let regex = Regex::new(r"([a-zà-ýA-ZÀ-Ý0-9]+)([[\s$][^a-zà-ýA-ZÀ-Ý0-9]]?)")?;
@@ -10,8 +18,12 @@ pub fn html_words<S: AsRef<str>>(text: S, optional_timing: Option<&Vec<WordTime>
         println!("{:?}", c);
         let range: std::ops::Range<usize> = c.get(0).unwrap().range();
         let timing_string = if let Some(timings) = &optional_timing {
-            let word_timing = &timings[nth_word];
-            format!(" start='{}' end='{}' debug_body='{}'", word_timing.start_time, word_timing.end_time, word_timing.body)
+            if nth_word >= timings.len() {
+                format!(" error='{}'", HTML_ERROR)
+            } else {
+                let word_timing: &WordTime = &timings[nth_word];
+                format!(" start='{}' end='{}' debug_body='{}'", word_timing.start_time, word_timing.end_time, word_timing.body)
+            }
         } else {
             String::new()
         };
@@ -57,6 +69,36 @@ mod tests {
         let expected_string = "<span word='0' char='0' start='0' end='0.1' debug_body='hello'>Hello</span> <span word='1' char='6' start='0.2' end='0.3' debug_body='world'>world</span>!";
         assert_eq!(result_string, expected_string);
     }
+
+        #[test]
+    fn html_words_hello_world_with_timing_merged_words() {
+        let timings = vec![
+            WordTime { start_time: 0.0, end_time: 0.1, body: "helloworld".to_string()}
+        ];
+        let result = html_words("Hello world!", Some(&timings));
+        assert!(result.is_ok());
+        let result_string = result.unwrap();
+        let expected_string= format!("<span word='0' char='0' start='0' end='0.1' debug_body='helloworld'>Hello</span> <span word='1' char='6' error='{}'>world</span>!", 
+            HTML_ERROR);
+        assert_eq!(result_string, expected_string);
+    }
+
+
+    //     #[test]
+    // fn html_words_with_timing_word_omitted() {
+    //     let timings = vec![
+    //         WordTime { start_time: 0.0, end_time: 0.1, body: "in".to_string()},
+    //         WordTime { start_time: 0.2, end_time: 0.3, body: "adoption".to_string()},
+    //         WordTime { start_time: 0.3, end_time: 0.4, body: "of".to_string()},
+    //         WordTime { start_time: 0.5, end_time: 0.6, body: "mechanisms".to_string()}
+    //     ];
+    //     let result = html_words("in the adoption of mechanisms", Some(&timings));
+    //     assert!(result.is_ok());
+    //     let result_string = result.unwrap();
+    //     let expected_string = "<span word='0' char='0' start='0' end='0.1' debug_body='hello'>Hello</span> <span word='1' char='6' start='0.2' end='0.3' debug_body='world'>world</span>!";
+    //     assert_eq!(result_string, expected_string);
+    // }
+
     
     #[test]
     fn html_words_phrase() {
@@ -66,5 +108,4 @@ mod tests {
         let expected_string = "<span word='0' char='0'>written</span> <span word='1' char='8'>or</span> <span word='2' char='11'>pictorial</span> <span word='3' char='21'>material</span>";
         assert_eq!(result_string, expected_string);
     }
-
 }
