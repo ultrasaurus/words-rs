@@ -1,3 +1,11 @@
+# ARCHIVED
+
+This repo is no longer maintained as stand-alone tool / library.
+It has been merged into https://github.com/ultrasaurus/altwebgen for use
+as an internal module since it seems to benefit from tight integration with UI.
+
+
+
 # words-rs
 
 Creates HTML spans for each word in a text string
@@ -7,7 +15,7 @@ If there is a file with same root name as the given inpute text file with extens
 
 TODO:
 - figure out what attributes are needed
-  - audio: tart time, duration
+  - audio: start time, duration
   - text: is word index useful? or just character index + word length?
 - flag to turn on/off debug attribute
 - use trace level logging and supress debug output by default
